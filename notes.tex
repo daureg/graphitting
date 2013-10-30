@@ -1,0 +1,36 @@
+\documentclass[a4paper,final,11pt]{article}
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage[autolanguage]{numprint}
+\usepackage[svgnames]{xcolor}
+\usepackage{listings}
+\usepackage{textcomp}
+\usepackage{setspace}
+\lstset{backgroundcolor=\color{White},
+	basicstyle=\ttfamily\scriptsize\setstretch{1},
+	stringstyle=\color{Orange},
+	showstringspaces=false,
+	numbers=none,
+	numberstyle=\tiny,
+	keywordstyle=\color{FireBrick},
+	commentstyle=\color{DodgerBlue}\slshape,
+	breaklines=true,
+	escapeinside={(*@}{@*)},
+	tabsize=2,
+	caption=\lstname,
+	inputencoding=utf8,
+}
+\lstloadlanguages{Matlab}
+\lstset{language=Matlab}
+\begin{document}
+\lstinputlisting[caption={Solving minimization problem with the subset
+method},label={lst:cg},texcl]{compute_graph.m}
+\lstinputlisting[caption={Computing hard
+graph},label={lst:chg},texcl]{compute_hard_graph.m}
+\lstinputlisting[caption={Computing $\alpha$-soft
+graph},label={lst:csg},texcl]{compute_alpha_graph.m}
+\lstinputlisting[caption={Use the built graph to classify
+samples},label={lst:gcl},texcl]{graph_classify.m}
+\end{document}
+
