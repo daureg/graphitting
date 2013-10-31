@@ -8,7 +8,7 @@
 \usepackage{textcomp}
 \usepackage{setspace}
 \lstset{backgroundcolor=\color{White},
-	basicstyle=\ttfamily\scriptsize\setstretch{1},
+	basicstyle=\ttfamily\small\setstretch{1},
 	stringstyle=\color{Orange},
 	showstringspaces=false,
 	numbers=none,
@@ -23,7 +23,26 @@
 }
 \lstloadlanguages{Matlab}
 \lstset{language=Matlab}
+\usepackage{amsmath}
+\usepackage[left=1cm, right=1cm]{geometry}
+\newcommand{\bm}[1]{\boldsymbol{#1}}
 \begin{document}
+	All the following is subject to $\bm{w},\bm{s}\geq0$:
+\begin{align*}
+\mathcal{L} &= \min_{\bm{w},\bm{s}} ||M\bm{w}||^2 + \mu||\mathbf{\bm{1}} - A\bm{w} - \bm{s}||^2 \\
+	    &= \min_{\bm{w},\bm{s}} \bm{w}^TM^TM\bm{w} + \mu\left( (\bm{1}^T -\bm{w}^TA^T -\bm{s}^T)(\bm{1} - A\bm{w} - \bm{s})\right)\\
+	    &= \min_{\bm{w},\bm{s}} \bm{w}^TM^TM\bm{w} + \mu\left( \bm{1}^T\bm{1} - \bm{1}^TA\bm{w} - \bm{1}^T\bm{s} -\bm{w}^TA^T\bm{1} +\bm{w}^TA^TA\bm{w} +\bm{w}^TA^T\bm{s}-\bm{s}^T\bm{1} +\bm{s}^T A\bm{w} +\bm{s}^T \bm{s}\right)\\
+	    &= \min_{\bm{w},\bm{s}} \bm{w}^T(M^TM+\mu A^TA)\bm{w} +\mu \bm{s}^TI^TI\bm{s} +
+	    \mu\left( 1 - 2 \bm{1}^TA\bm{w} - 2 \bm{1}^T\bm{s} +2\bm{w}^TA^T\bm{s}\right)\\
+	    &= \min_{\bm{y}} \bm{y}^T
+\begin{pmatrix}
+M^TM+\mu A^TA & 0 \\
+0 & \mu I
+\end{pmatrix}\bm{y} +\begin{pmatrix}
+-2\mu \bm{1}^TA \\
+-2\mu \bm{1}^T
+\end{pmatrix}\bm{y} +2\mu \bm{w}^TA^T\bm{s}\\
+\end{align*}
 \lstinputlisting[caption={Solving minimization problem with the subset
 method},label={lst:cg},texcl]{compute_graph.m}
 \lstinputlisting[caption={Computing hard
