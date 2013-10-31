@@ -11,7 +11,7 @@ while (can_improve)
 	w, Aw, L = compute_graph(X, 'soft', mu);
 	tmp = max(zeros(m, 1), ones(m, 1) - A*w);
 	alpha_bar = tmp'*tmp/n;
-	% Maybe we don't need this complication and keep a fixed $\tau=tau_0$.
+	% Maybe we don't need this complication and keep a fixed $\tau=\tau_0$.
 	tau = tau0/(1 + nb_iter*lambda);
 	if (alpha_bar < alpha)
 		% We want to increase $\bar{\alpha}$ so we need decrease $\mu$, which in

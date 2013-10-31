@@ -18,33 +18,35 @@ edges = randi(m, 1, 0.07*(d+1)*n);
 while (numel(edges) > 0 && nb_iter < MAX_ITER)
 	% Remove the multiple of $n$ to avoid self loop (and the first one in case
 	% it's 1).
-	edges = edges(mod(edges, n) != 0)(2:end);
+	edges = edges(mod(edges, n) ~= 0);
+	edges = edges(2:end);
 	% Then we update the corresponding element $(i,j)=e$ of $U$ with
 	% respectively $1$ and $-1$.
 	vertex_j = rem(edges, n);
-	vertex_i = div(edges, n) + 1;
+	vertex_i = mod(edges, n) + 1;
 	positive = bsxfun (@(x,y) sub2ind(size(U), x, y), vertex_i, edges);
 	negative = bsxfun (@(x,y) sub2ind(size(U), x, y), vertex_j, edges);
 	U(positive) = 1;
 	U(negative) = -1;
 	A = abs(U);
-	assert(sum(A)/2 <= (d+1)*n, 'there are too many edges');
+	assert(sum(A(:))/2 <= (d+1)*n, 'there are too many edges');
 
 	T = U'*X; % $y^{(k)} = U^Tx^{k}$ is thus the $k$th column of $T$
 	% TODO: use parfor
 	for k=1:d
 		first_row = 1 + (k-1)*n;
 		last_row = n + (k-1)*n;
-		Yk = spdiags(T, [k], m, m);
+		Yk = spdiags(T(:,k), [0], m, m);
 		M(first_row:last_row, :) = U*Yk;
 	end
 	% Now that we have built our matrices, we can solve the minimization problem
 	% TODO use SDPT3, although the documentation is quite intimidating:
 	% http://www.math.nus.edu.sg/~mattohkc/sdpt3/guide4-0-draft.pdf
 	if strcmpi(kind, 'hard')
-		[w, f, flag, output, lambda] = quadprog(M'*M, sparse(m, 1), ...
-																-A, -ones(m, 1), [], [], [], [], w);
-		z = lambda.lower;
+		% we only want to constrain the nodes that have edges to be of
+		% degree at least 1.
+		[w, f, flag, output, lambda] = quadprog(M'*M, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], [], [], w);
+		z = lambda.ineqlin;
 		derivative = 2*M'*M*w - A'*z;
 	else
 		% According to the paper, we want to solve
@@ -62,4 +64,5 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 	nb_iter = nb_iter + 1;
 end
 Aw = A*w;
-L = U'*spdiags (w, [0], m, m)*U;
+W = spdiags (w, [0], m, m);
+L = U*W*U';
