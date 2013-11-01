@@ -13,7 +13,7 @@
 	showstringspaces=false,
 	numbers=none,
 	numberstyle=\tiny,
-	keywordstyle=\color{FireBrick},
+	keywordstyle=\color{YellowGreen},
 	commentstyle=\color{DodgerBlue}\slshape,
 	breaklines=true,
 	escapeinside={(*@}{@*)},
@@ -35,14 +35,28 @@
 	    &= \min_{\bm{w},\bm{s}} \bm{w}^T(M^TM+\mu A^TA)\bm{w} +\mu \bm{s}^TI^TI\bm{s} +
 	    \mu\left( 1 - 2 \bm{1}^TA\bm{w} - 2 \bm{1}^T\bm{s} +2\bm{w}^TA^T\bm{s}\right)\\
 	    &= \min_{\bm{y}} \bm{y}^T
-\begin{pmatrix}
-M^TM+\mu A^TA & 0 \\
-0 & \mu I
-\end{pmatrix}\bm{y} +\begin{pmatrix}
--2\mu \bm{1}^TA \\
--2\mu \bm{1}^T
-\end{pmatrix}\bm{y} +2\mu \bm{w}^TA^T\bm{s}\\
+\underbrace{\begin{pmatrix}
+M^TM+\mu A^TA & \mu A^T \\
+\mu A & \mu I
+\end{pmatrix}}_{C^TC}\bm{y} -2\begin{pmatrix}
+\mu \bm{1}^TA \\
+\mu \bm{1}^T
+\end{pmatrix}\bm{y}
++\underbrace{\mu\bm{1}^T\bm{1}}_{\bm{d}^T\bm{d}}\\
+&= \min_{\bm{y}} \bm{y}^T H \bm{y} + \bm{f}\bm{y}
 \end{align*}
+where $\bm{y}$ is the $m+n$ vector 
+$
+\begin{pmatrix}
+	\bm{w}\\
+	\bm{s}
+\end{pmatrix}\geq0$. Yet it still does not look like:
+\begin{align*}
+\min_{\bm{y}} ||C\bm{y} - \bm{d} ||^2 = \min_{\bm{y}} \bm{y}^TC^TC\bm{y} - 2\bm{d}^TC\bm{y} + \bm{d}^T\bm{d}
+\end{align*}
+because of $M$.
+
+\begin{center}
 \lstinputlisting[caption={Solving minimization problem with the subset
 method},label={lst:cg},texcl]{compute_graph.m}
 \lstinputlisting[caption={Computing hard
@@ -51,5 +65,5 @@ graph},label={lst:chg},texcl]{compute_hard_graph.m}
 graph},label={lst:csg},texcl]{compute_alpha_graph.m}
 \lstinputlisting[caption={Use the built graph to classify
 samples},label={lst:gcl},texcl]{graph_classify.m}
+\end{center}
 \end{document}
-
