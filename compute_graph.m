@@ -6,6 +6,8 @@ U = sparse(n, m);
 w = [];
 MAX_ITER = 50;
 nb_iter = 0;
+bin_lower = n*(0:n-1) - cumsum(0:n-1);
+considered_last_time = [];
 
 % At the end, we cannot have more than $\frac{d+1}{n}$ edges according to
 % Theorem 3.1. But we must start with only a small subset of them. So we first
@@ -13,17 +15,13 @@ nb_iter = 0;
 % one). Actually, it may be more sensitive to use some kind of heuristic like
 % nearest neighbors at this stage to be more efficient later.
 
-edges = randi(m, 1, 0.07*(d+1)*n);
+edges = randi(m, 1, floor(0.33*(d+1)*n));
 
 while (numel(edges) > 0 && nb_iter < MAX_ITER)
-	% Remove the multiple of $n$ to avoid self loop (and the first one in case
-	% it's 1).
-	edges = edges(mod(edges, n) ~= 0);
-	edges = edges(2:end);
 	% Then we update the corresponding element $(i,j)=e$ of $U$ with
 	% respectively $1$ and $-1$.
-	vertex_j = rem(edges, n);
-	vertex_i = mod(edges, n) + 1;
+	vertex_i = arrayfun(@(x) find(x' <= bin_lower, 1, 'first'), edges) - 1;
+	vertex_j = vertex_i + edges - bin_lower(vertex_i);
 	positive = bsxfun (@(x,y) sub2ind(size(U), x, y), vertex_i, edges);
 	negative = bsxfun (@(x,y) sub2ind(size(U), x, y), vertex_j, edges);
 	U(positive) = 1;
@@ -42,12 +40,17 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 	% Now that we have built our matrices, we can solve the minimization problem
 	% TODO use SDPT3, although the documentation is quite intimidating:
 	% http://www.math.nus.edu.sg/~mattohkc/sdpt3/guide4-0-draft.pdf
+	% It would be especially usefull as MATLAB seems to convert M'*M to
+	% a full matrice, which takes around $2n^4$ bytes of memory (so 8GB for
+	% $n=250$).
 	if strcmpi(kind, 'hard')
 		% we only want to constrain the nodes that have edges to be of
 		% degree at least 1.
-		[w, f, flag, output, lambda] = quadprog(M'*M, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], [], [], w);
+		o = optimoptions(@quadprog, 'Algorithm', 'active-set', 'Display', 'final-detailed');
+		[w, f, flag, output, lambda] = quadprog(M'*M, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], [], [], w, o);
 		z = lambda.ineqlin;
 		derivative = 2*M'*M*w - A'*z;
+		save('out', 'M', 'w', 'A', 'lambda', 'derivative');
 	else
 		% According to the paper, we want to solve
 		% $ \min_{w,s} ||Mw||^2 + \mu||\mathbf{1} - Aw - s|| $
@@ -56,13 +59,18 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 		error(strcat(kind, ' is not yet implemented'));
 	end
 	[val, may_be_added]=sort(derivative(find(derivative<0)));
+	if ((length(may_be_added) == 0) || (length(may_be_added) == length(considered_last_time) && all(may_be_added' == considered_last_time)))
+		break;
+	end
 	% The paper says: we add to our quadratic program the edges with the smallest
 	% $\frac{d\Lambda}{d w_{i,j}}$ values, which I think mean not all. For now,
 	% let's take half of them. TODO take only the one below average or look at
 	% diff.
-	edges = may_be_added(1:end/2);
+	edges = may_be_added(1:max(1, floor(end/2)))';
+	considered_last_time = may_be_added;
 	nb_iter = nb_iter + 1;
 end
 Aw = A*w;
 W = spdiags (w, [0], m, m);
 L = U*W*U';
+end
