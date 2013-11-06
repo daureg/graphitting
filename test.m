@@ -1,7 +1,7 @@
 load small.mat
 tic;
-w = fully_solve(X);
+[wr, Ar, Hr, fr, Lr] = fully_solve(X);
 toc
 tic;
-[wi, ~, ~] = compute_graph(X, 'hard', 0);
+[wmw, Aw, Hw, fw] = compute_graph(X, 'hard', 0);
 toc

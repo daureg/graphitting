@@ -26,7 +26,50 @@
 \usepackage{amsmath}
 \usepackage[left=1cm, right=1cm]{geometry}
 \newcommand{\bm}[1]{\boldsymbol{#1}}
+\usepackage{csquotes}
+\usepackage{hyperref}
 \begin{document}
+
+When one solve for $X$ using the full (or complete) matrix $U$, one get a
+vector $\bm{w}$ with 32 non zero weight. Using this information, I selected those
+32 edges as the \enquote{random} ones at the beginning the iterative
+procedure. Even in that case, \texttt{quadprog} failed to get any meaningful
+answer (even worse, starting from the original complete solution does not seem
+to help). Still, I found one bad index error I made in the code that add
+edges. Then I tried
+\href{http://www.math.nus.edu.sg/~mattohkc/sdpt3.html}{SDPT3} using
+\href{http://users.isy.liu.se/johanl/yalmip/}{YALMIP} to describe the problem:
+
+\begin{lstlisting}
+y=sdpvar(m,1);
+Constraints=[y>=0, A*y-ones(n,1)>=0];
+Objective=y'*H*y;
+option=sdpsettings('solver', 'sdpt3', 'savesolveroutput', 1);
+sol=solvesdp(Constraints, Objective, option);
+w = double(y);
+f=-mean(sol.solveroutput.obj);
+\end{lstlisting}
+
+Things were somewhere better: strangely enough, weights on excluded edges are
+around $4.41\cdot 10^4$ but the ones on included edges match those of the
+complete solution. Yet there are other issues:
+
+\begin{itemize}
+	\item I don't know how to start from a initial solution (although
+		there is the \texttt{usex0} option).
+	\item I don't know how to get Lagrange multipliers $z$ which may cause
+		some troubles when computing the derivative (which will be
+		needed in the case we do not cheat by selecting all the right
+		edges at first).
+\end{itemize}
+
+I also tried to complete the full solution on the iris dataset to see if it
+make sense by testing the classification method but I soon renounced. Going
+from $n=15$ to $n=24$ change solving optimization time from $0.5$ seconds to
+$7.5$ and I think the complexity is $O(n^4)$ so it would have taken hours.
+
+\bigbreak
+
 	All the following is subject to $\bm{w},\bm{s}\geq0$:
 \begin{align*}
 \mathcal{L} &= \min_{\bm{w},\bm{s}} ||M\bm{w}||^2 + \mu||\mathbf{\bm{1}} - A\bm{w} - \bm{s}||^2 \\

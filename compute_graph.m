@@ -1,4 +1,4 @@
-function [w, Aw, L] = compute_graph(X, kind, mu)
+function [w, A, H, f] = compute_graph(X, kind, mu)
 % All stories have a hero and our is not different. So meet $X$, a handsome and
 % brave set of $n$ $d$-dimensional vectors.
 [n, d] = size(X);
@@ -18,6 +18,8 @@ MAX_ITER = 50;
 nb_iter = 0;
 bin_upper = n*(0:n-1) - cumsum(0:n-1);
 considered_last_time = [];
+[HK, UK] = get_complete_matrices(X);
+AK = abs(UK);
 
 % One day, an old man told $X$ that she could for instance start with this
 % random small subset: a third of $(d+1)n$ edges, as this was indeed common
@@ -26,6 +28,8 @@ considered_last_time = [];
 % sensible initial choice like bind each node with its closest neighbor. Well,
 % I am telling the story so we do like this. But feel free to contribute!
 edges = randi(m, 1, floor(0.33*(d+1)*n));
+% shamelessly cheating!
+load('edges.mat');
 
 % And thus begin the quest of $X$, until she can not add more edges to $U$ or
 % until she get fed up and realize that organizing illegal fights of turtles is
@@ -66,6 +70,7 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 		Yk = spdiags(T(:,k), [0], m, m);
 		M(first_row:last_row, :) = U*Yk;
 	end
+	H = M'*M;
 
 	% Having done all this preparatory work, $X$ could finally go see an
 	% oracle living in the mountain, the so called quadprog, and ask him to
@@ -81,15 +86,28 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 		% the oracle: $-Aw \leq -\bm{1}$. But this was only possible
 		% for the nodes that were part of at least one edge, that is
 		% for the non zero rows of $A$).
-		o = optimoptions(@quadprog, 'Algorithm', 'active-set', 'Display', 'final-detailed');
-		[w, f, flag, output, lambda] = quadprog(M'*M, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], [], [], w, o);
+		tic;
+		y=sdpvar(m,1);
+		C=[y>=0, A*y-ones(n,1)>=0];
+		O=y'*H*y;
+		os=sdpsettings('solver', 'sdpt3', 'savesolveroutput', 1);
+		sol=solvesdp(C,O,os);
+		w = double(y);
+		toc
+		f=-mean(sol.solveroutput.obj);
+		% do only one iteration since we need a way to compute the derivative
+		break;
+		o = optimoptions(@quadprog, 'Algorithm', 'active-set', 'MaxIter', 500);
+		[w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], zeros(m,1), [], w, o);
+		toc
 		z = lambda.ineqlin;
-		derivative = 2*M'*M*w - A'*z;
-		save('out', 'M', 'w', 'A', 'lambda', 'derivative');
+		derivative = 2*HK*w + AK'*z;
+		f
+		save('out', 'H', 'w', 'A', 'lambda', 'derivative');
 	else
 		% There was another method were a portion $\alpha$ of the nodes
 		% were allowed to have degree less than one. But she still
-		% has to think about to formulate 
+		% has to think about to formulate
 		% $ \min_{w,s} ||Mw||^2 + \mu||\bm{1} - Aw - s||^2 $
 	 	% for quadprog or lsqnonneg (http://math.stackexchange.com/q/545280)
 		error(strcat(kind, ' is not yet implemented'));
@@ -97,17 +115,25 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 	% Because the new $(w, z)$ were supposed to be feasible solution,
 	% $\frac{d\Lambda}{d w}$ has to be positive. Therefore, she finds the
 	% edges where it was not the case to add them in the next step.
-	[val, may_be_added]=sort(derivative(find(derivative<0)));
+	% [val, may_be_added]=sort(derivative(find(derivative<0)));
+	% This was badly erroneous
+	may_be_added = find(derivative<0)'
+	% perform cheap regularization, namely remove weirdly large value
+	% (find another way to do it in general)
+	w(w>1e6) = 0;
 	% Of course maybe there was nothing to do. Or more concerning, the
 	% oracle was rambling and returned a solution that yields the same set
 	% of edges to add as previously, in which case there was no point in
 	% continuing any further.
-	if ((length(may_be_added) == 0) || (length(may_be_added) == length(considered_last_time) && all(may_be_added' == considered_last_time)))
+	if ((isempty(may_be_added)) || (length(may_be_added) == length(considered_last_time) && all(may_be_added == considered_last_time)))
 		break;
 	end
 	% She decide to add only half of them but probably there were other
 	% ways of doing it (like adding the "smallest one" ?)
-	edges = may_be_added(1:max(1, floor(end/2)))';
+	% edges = may_be_added(1:max(1, floor(end/2)))';
+	edges = may_be_added;
+	% this is quite arguable
+	w(may_be_added) = mean(w);
 	considered_last_time = may_be_added;
 	nb_iter = nb_iter + 1;
 end
