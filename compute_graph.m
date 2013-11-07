@@ -30,6 +30,11 @@ AK = abs(UK);
 edges = randi(m, 1, floor(0.33*(d+1)*n));
 % shamelessly cheating!
 load('edges.mat');
+% edges = sort([18 edges]);
+tmp = randperm(numel(edges));
+cedges = sort(edges(tmp(1:end-3)));
+save cedges cedges
+edges = cedges;
 
 % And thus begin the quest of $X$, until she can not add more edges to $U$ or
 % until she get fed up and realize that organizing illegal fights of turtles is
@@ -86,24 +91,24 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 		% the oracle: $-Aw \leq -\bm{1}$. But this was only possible
 		% for the nodes that were part of at least one edge, that is
 		% for the non zero rows of $A$).
-		tic;
-		y=sdpvar(m,1);
-		C=[y>=0, A*y-ones(n,1)>=0];
-		O=y'*H*y;
-		os=sdpsettings('solver', 'sdpt3', 'savesolveroutput', 1);
-		sol=solvesdp(C,O,os);
-		w = double(y);
-		toc
-		f=-mean(sol.solveroutput.obj);
+		% y=sdpvar(m,1);
+		% C=[y>=0, A*y-ones(n,1)>=0];
+		% O=y'*(H)*y;
+		% os=sdpsettings('solver', 'sdpt3', 'savesolveroutput', 1, 'usex0', 1, 'verbose', 0);
+		% tic;
+		% sol=solvesdp(C,O,os);
+		% w = double(y);
+		% toc
+		% f=-mean(sol.solveroutput.obj);
 		% do only one iteration since we need a way to compute the derivative
-		break;
-		o = optimoptions(@quadprog, 'Algorithm', 'active-set', 'MaxIter', 500);
+		% break;
+		o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 500);
 		[w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], zeros(m,1), [], w, o);
-		toc
 		z = lambda.ineqlin;
 		derivative = 2*HK*w + AK'*z;
 		f
-		save('out', 'H', 'w', 'A', 'lambda', 'derivative');
+		save('out.mat', 'lambda', 'derivative');
+		break;
 	else
 		% There was another method were a portion $\alpha$ of the nodes
 		% were allowed to have degree less than one. But she still
