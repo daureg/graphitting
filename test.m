@@ -10,6 +10,8 @@ tic;
 toc
 % derivative=(2*HK*ww)';
 load cedges.mat
+edges = find(wr>.0001);
+m=105;
 excluded=setdiff(1:m, edges);
 % d are the 3 edges that we have remove from the 32 correct ones.
 d=setdiff(edges,cedges)

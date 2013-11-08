@@ -100,13 +100,17 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 		% f=-mean(sol.solveroutput.obj);
 		% do only one iteration since we need a way to compute the derivative
 		% break;
-		o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 500);
+		if (strmatch('2013', version('-release')))
+			o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 500);
+		else
+			o = optimset('Algorithm', 'interior-point-convex', 'MaxIter', 500);
+		end
 		% [w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], zeros(m,1), [], w, o);
 		[w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(ones(n, 1), [], [], zeros(m,1), [], w, o);
 		z = lambda.ineqlin;
-		derivative = 2*HK*w + AK'*z;
+		derivative = 2*HK*w - AK'*z;
 		save('out.mat', 'lambda', 'derivative');
-		break;
+		% break;
 	else
 		% There was another method were a portion $\alpha$ of the nodes
 		% were allowed to have degree less than one. But she still
