@@ -27,14 +27,14 @@ AK = abs(UK);
 % more. At this point, the astute reader may wonder why we do not use a more
 % sensible initial choice like bind each node with its closest neighbor. Well,
 % I am telling the story so we do like this. But feel free to contribute!
-edges = randi(m, 1, floor(0.33*(d+1)*n));
+edges = randi(m, 1, floor(0.1*(d+1)*n));
 % shamelessly cheating!
-load('edges.mat');
-% edges = sort([18 edges]);
-tmp = randperm(numel(edges));
-cedges = sort(edges(tmp(1:end-3)));
-save cedges cedges
-edges = cedges;
+% load('edges.mat');
+% % edges = sort([18 edges]);
+% tmp = randperm(numel(edges));
+% cedges = sort(edges(tmp(1:end-3)));
+% save cedges cedges
+% edges = cedges;
 
 % And thus begin the quest of $X$, until she can not add more edges to $U$ or
 % until she get fed up and realize that organizing illegal fights of turtles is
@@ -47,15 +47,13 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 	% and so on.  It turns out that bin\_upper has memorized all these
 	% upper bounds so finding $i$s was simply a matter of finding the
 	% maximum possible bounds.
-	vertex_i = arrayfun(@(x) find(x' <= bin_upper, 1, 'first'), edges) - 1;
-	% Then $j$ follows
-	vertex_j = vertex_i + edges - bin_upper(vertex_i);
-	% and the pairs $(i,j)$ could be converted into $U$ indexes
-	positive = bsxfun (@(x,y) sub2ind(size(U), x, y), vertex_i, edges);
-	negative = bsxfun (@(x,y) sub2ind(size(U), x, y), vertex_j, edges);
+	[positive, negative] = from_edges_to_index(edges, bin_upper, size(U));
 	% in order to represent the newly selected edges.
 	U(positive) = 1;
 	U(negative) = -1;
+	[is, js] = from_edges_to_index(to_remove, bin_upper, size(U));
+	U(is) = 0;
+	U(js) = 0;
 	A = abs(U);
 	assert(sum(A(:))/2 <= (d+1)*n, 'there are too many edges');
 
@@ -103,10 +101,10 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 		% do only one iteration since we need a way to compute the derivative
 		% break;
 		o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 500);
-		[w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], zeros(m,1), [], w, o);
+		% [w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], zeros(m,1), [], w, o);
+		[w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(ones(n, 1), [], [], zeros(m,1), [], w, o);
 		z = lambda.ineqlin;
 		derivative = 2*HK*w + AK'*z;
-		f
 		save('out.mat', 'lambda', 'derivative');
 		break;
 	else
@@ -140,6 +138,7 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 	% this is quite arguable
 	w(may_be_added) = mean(w);
 	considered_last_time = may_be_added;
+	to_remove = find(w<1e-8)';
 	nb_iter = nb_iter + 1;
 end
 % When $X$ finds the perfect weights for her graph (and hopefully not because
