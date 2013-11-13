@@ -70,23 +70,27 @@ $7.5$ and I think the complexity is $O(n^4)$ so it would have taken hours.
 
 \bigbreak
 
+There is a typo in the paper, it should be $+\bm{s}$ instead of $-\bm{s}$
+(otherwise there is a trivial solution: $\bm{s} = \bm{1}$ and $\bm{w} =
+\bm{0}$. Actually it was corrected in the video's slides, but I only
+remembered it too late).
 	All the following is subject to $\bm{w},\bm{s}\geq0$:
 \begin{align*}
-\mathcal{L} &= \min_{\bm{w},\bm{s}} ||M\bm{w}||^2 + \mu||\mathbf{\bm{1}} - A\bm{w} - \bm{s}||^2 \\
-	    &= \min_{\bm{w},\bm{s}} \bm{w}^TM^TM\bm{w} + \mu\left( (\bm{1}^T -\bm{w}^TA^T -\bm{s}^T)(\bm{1} - A\bm{w} - \bm{s})\right)\\
-	    &= \min_{\bm{w},\bm{s}} \bm{w}^TM^TM\bm{w} + \mu\left( \bm{1}^T\bm{1} - \bm{1}^TA\bm{w} - \bm{1}^T\bm{s} -\bm{w}^TA^T\bm{1} +\bm{w}^TA^TA\bm{w} +\bm{w}^TA^T\bm{s}-\bm{s}^T\bm{1} +\bm{s}^T A\bm{w} +\bm{s}^T \bm{s}\right)\\
+\mathcal{L} &= \min_{\bm{w},\bm{s}} ||M\bm{w}||^2 + \mu||\mathbf{\bm{1}} - A\bm{w} + \bm{s}||^2 \\
+	    &= \min_{\bm{w},\bm{s}} \bm{w}^TM^TM\bm{w} + \mu\left( (\bm{1}^T -\bm{w}^TA^T +\bm{s}^T)(\bm{1} - A\bm{w} + \bm{s})\right)\\
+	    &= \min_{\bm{w},\bm{s}} \bm{w}^TM^TM\bm{w} + \mu\left( \bm{1}^T\bm{1} - \bm{1}^TA\bm{w} + \bm{1}^T\bm{s} -\bm{w}^TA^T\bm{1} +\bm{w}^TA^TA\bm{w} -\bm{w}^TA^T\bm{s}+\bm{s}^T\bm{1} -\bm{s}^T A\bm{w} +\bm{s}^T \bm{s}\right)\\
 	    &= \min_{\bm{w},\bm{s}} \bm{w}^T(M^TM+\mu A^TA)\bm{w} +\mu \bm{s}^TI^TI\bm{s} +
-	    \mu\left( 1 - 2 \bm{1}^TA\bm{w} - 2 \bm{1}^T\bm{s} +2\bm{w}^TA^T\bm{s}\right)\\
+	    \mu\left( 1 - 2 \bm{1}^TA\bm{w} + 2 \bm{1}^T\bm{s} -2\bm{w}^TA^T\bm{s}\right)\\
 	    &= \min_{\bm{y}} \bm{y}^T
 \underbrace{\begin{pmatrix}
-M^TM+\mu A^TA & \mu A^T \\
-\mu A & \mu I
+M^TM+\mu A^TA & -\mu A^T \\
+-\mu A & \mu I
 \end{pmatrix}}_{C^TC}\bm{y} -2\begin{pmatrix}
 \mu \bm{1}^TA \\
-\mu \bm{1}^T
+-\mu \bm{1}^T
 \end{pmatrix}\bm{y}
 +\underbrace{\mu\bm{1}^T\bm{1}}_{\bm{d}^T\bm{d}}\\
-&= \min_{\bm{y}} \bm{y}^T H \bm{y} + \bm{f}\bm{y}
+&= \min_{\bm{y}} \bm{y}^T H \bm{y} + \bm{f}\bm{y} = \min_{\bm{y}} \Lambda(\bm{y})
 \end{align*}
 where $\bm{y}$ is the $m+n$ vector 
 $
@@ -99,7 +103,14 @@ $
 \end{align*}
 because of $M$.
 
+Nonetheless, as there is no constraints and thus no Lagrange multipliers:
+\begin{align*}
+	\frac{d\Lambda}{\bm{dw}} &= 2(M^TM+\mu A^TA)\bm{w} - 2\mu A^T(\bm{s} + \bm{1})
+\end{align*}
+
 \begin{center}
+\lstinputlisting[caption={Solve in one call (for testing purpose, only try
+this on very small dataset)},label={lst:full},texcl]{fully_solve.m}
 \lstinputlisting[caption={Solving minimization problem with the subset
 method},label={lst:cg},texcl]{compute_graph.m}
 \lstinputlisting[caption={Computing hard

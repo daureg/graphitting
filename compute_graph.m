@@ -108,6 +108,8 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 		% [w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], zeros(m,1), [], w, o);
 		[w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(ones(n, 1), [], [], zeros(m,1), [], w, o);
 		z = lambda.ineqlin;
+		% TODO: since quadprog put a factor 1/2 in front of H, make
+		% sure the derivative is correct.
 		derivative = 2*HK*w - AK'*z;
 		save('out.mat', 'lambda', 'derivative');
 		% break;
@@ -122,7 +124,7 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 	% Because the new $(w, z)$ were supposed to be feasible solution,
 	% $\frac{d\Lambda}{d w}$ has to be positive. Therefore, she finds the
 	% edges where it was not the case to add them in the next step.
-	% [val, may_be_added]=sort(derivative(find(derivative<0)));
+	% [val, may\_be\_added]=sort(derivative(find(derivative<0)));
 	% This was badly erroneous
 	may_be_added = find(derivative<0)'
 	% perform cheap regularization, namely remove weirdly large value
@@ -137,7 +139,7 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 	end
 	% She decide to add only half of them but probably there were other
 	% ways of doing it (like adding the "smallest one" ?)
-	% edges = may_be_added(1:max(1, floor(end/2)))';
+	% edges = may\_be\_added(1:max(1, floor(end/2)))';
 	edges = may_be_added;
 	% this is quite arguable
 	w(may_be_added) = mean(w);
@@ -148,6 +150,7 @@ end
 % When $X$ finds the perfect weights for her graph (and hopefully not because
 % she just give up), she have to fill some paperwork like computing weighted
 % degree and Laplacian to make their union official.
+% TODO: When it will work, use this as output argument
 Aw = A*w;
 W = spdiags (w, [0], m, m);
 L = U*W*U';
