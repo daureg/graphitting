@@ -16,9 +16,9 @@ if strcmpi(kind, 'soft')
 	b = [];
 	lower_bound = zeros(m+n, 1);
 end
-if (validatestring(version('-release'), {'2013a', '2013b'}))
+try (validatestring(version('-release'), {'2013a', '2013b'}))
 	o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 500, 'Display', 'off', 'TolFun', 1e-15);
-else
+catch older_version
 	o = optimset('Algorithm', 'interior-point-convex', 'MaxIter', 500);
 end
 [w] = quadprog(H, f, A_constraint, b, [], [] , lower_bound, [] , w, o);

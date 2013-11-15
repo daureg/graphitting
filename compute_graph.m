@@ -9,13 +9,13 @@ U = sparse(n, m);
 % Yet for now, $U$, like many boys of his age, is quite empty. Therefore $X$,
 % must fill him with the weights in $w$. But to be fair, she has no feasible
 % solution to propose so far.
-w = [];
+w = 1/n*ones(m, 1);
 % Fortunately, she will be helped by some friends, although they shall be
 % presented later, as they are, with all due respect, mainly calculations'
 % artifice (and as such, they don't have a clue about how to start).
 M = sparse(d*n, m);
 MAX_ITER = 50;
-nb_iter = 0;
+nb_iter = 1;
 bin_upper = n*(0:n-1) - cumsum(0:n-1);
 considered_last_time = [];
 [HK, UK] = get_complete_matrices(X);
@@ -28,6 +28,7 @@ AK = abs(UK);
 % sensible initial choice like bind each node with its closest neighbor. Well,
 % I am telling the story so we do like this. But feel free to contribute!
 edges = randi(m, 1, floor(0.1*(d+1)*n));
+to_remove = [];
 % shamelessly cheating!
 % load('edges.mat');
 % % edges = sort([18 edges]);
@@ -39,7 +40,7 @@ edges = randi(m, 1, floor(0.1*(d+1)*n));
 % And thus begin the quest of $X$, until she can not add more edges to $U$ or
 % until she get fed up and realize that organizing illegal fights of turtles is
 % much more exciting than finding love.
-while (numel(edges) > 0 && nb_iter < MAX_ITER)
+while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 	% $U$ was also quite stubborn and felt that linear indexing of edges
 	% was not doing justice to his amazing 2D abilities. Therefore $X$ has
 	% to resort to her cunning to convert them. The edges $1$ through $n-1$
@@ -55,7 +56,13 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 	U(is) = 0;
 	U(js) = 0;
 	A = abs(U);
-	assert(sum(A(:))/2 <= (d+1)*n, 'there are too many edges');
+	if (sum(A(:))/2 >= (d+1)*n)
+		warning('There were too many edges at iteration %d so I removed the 20%% smallest of them (I''m not heartless, but science must prevail!)', nb_iter)
+		to_remove = find(w<quantile(w, .2))';
+		[is, js] = from_edges_to_index(to_remove, bin_upper, size(U));
+		U([is js]) = 0;
+		A = abs(U);
+	end
 
 	% To assess their compatibility, the tradition was to compute the
 	% Frobenius norm of $X$ times the graph Laplacian. Both find this
@@ -73,7 +80,7 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 		Yk = spdiags(T(:,k), [0], m, m);
 		M(first_row:last_row, :) = U*Yk;
 	end
-	H = M'*M;
+	H = 2.*(M'*M);
 
 	% Having done all this preparatory work, $X$ could finally go see an
 	% oracle living in the mountain, the so called quadprog, and ask him to
@@ -101,12 +108,12 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 		% do only one iteration since we need a way to compute the derivative
 		% break;
 		if (strmatch('2013', version('-release')))
-			o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 500);
+			o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 500, 'Display', 'off');
 		else
-			o = optimset('Algorithm', 'interior-point-convex', 'MaxIter', 500);
+			o = optimset('Algorithm', 'interior-point-convex', 'MaxIter', 500, 'Display', 'off');
 		end
-		% [w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], zeros(m,1), [], w, o);
-		[w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(ones(n, 1), [], [], zeros(m,1), [], w, o);
+		[w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], zeros(m,1), [], w, o);
+ 		% [w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -ones(n, 1), [], [], zeros(m,1), [], w, o);
 		z = lambda.ineqlin;
 		% TODO: since quadprog put a factor 1/2 in front of H, make
 		% sure the derivative is correct.
@@ -126,7 +133,7 @@ while (numel(edges) > 0 && nb_iter < MAX_ITER)
 	% edges where it was not the case to add them in the next step.
 	% [val, may\_be\_added]=sort(derivative(find(derivative<0)));
 	% This was badly erroneous
-	may_be_added = find(derivative<0)'
+	may_be_added = find(derivative<0)';
 	% perform cheap regularization, namely remove weirdly large value
 	% (find another way to do it in general)
 	w(w>1e6) = 0;
@@ -154,4 +161,5 @@ end
 Aw = A*w;
 W = spdiags (w, [0], m, m);
 L = U*W*U';
+sprintf('use %d out %d possible iterations', nb_iter, MAX_ITER)
 end
