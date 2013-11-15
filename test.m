@@ -22,6 +22,6 @@ toc
 % [v,i]=sort(derivative);
 % v(1:5)'
 % setdiff(i(1:5)', cedges)
-edges = find(wr>1e-4);
-[wr(edges) ww(edges)]
+edges = find(wr>1e-5);
+% [wr(edges) ww(edges)]
 norm(wr-ww)

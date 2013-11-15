@@ -9,7 +9,7 @@ U = sparse(n, m);
 % Yet for now, $U$, like many boys of his age, is quite empty. Therefore $X$,
 % must fill him with the weights in $w$. But to be fair, she has no feasible
 % solution to propose so far.
-w = 1/n*ones(m, 1);
+w = zeros(m, 1);
 % Fortunately, she will be helped by some friends, although they shall be
 % presented later, as they are, with all due respect, mainly calculations'
 % artifice (and as such, they don't have a clue about how to start).
@@ -20,6 +20,7 @@ bin_upper = n*(0:n-1) - cumsum(0:n-1);
 considered_last_time = [];
 [HK, UK] = get_complete_matrices(X);
 AK = abs(UK);
+all_edges = 1:m;
 
 % One day, an old man told $X$ that she could for instance start with this
 % random small subset: a third of $(d+1)n$ edges, as this was indeed common
@@ -27,8 +28,8 @@ AK = abs(UK);
 % more. At this point, the astute reader may wonder why we do not use a more
 % sensible initial choice like bind each node with its closest neighbor. Well,
 % I am telling the story so we do like this. But feel free to contribute!
-edges = randi(m, 1, floor(0.1*(d+1)*n));
-to_remove = [];
+edges = randi(m, 1, floor(0.07*(d+1)*n));
+to_remove = zeros(1,m);
 % shamelessly cheating!
 % load('edges.mat');
 % % edges = sort([18 edges]);
@@ -37,6 +38,7 @@ to_remove = [];
 % save cedges cedges
 % edges = cedges;
 
+increment = logspace(-1, 0, 10);%.1:.05:1;
 % And thus begin the quest of $X$, until she can not add more edges to $U$ or
 % until she get fed up and realize that organizing illegal fights of turtles is
 % much more exciting than finding love.
@@ -49,20 +51,28 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 	% upper bounds so finding $i$s was simply a matter of finding the
 	% maximum possible bounds.
 	[positive, negative] = from_edges_to_index(edges, bin_upper, size(U));
-	% in order to represent the newly selected edges.
 	U(positive) = 1;
 	U(negative) = -1;
-	[is, js] = from_edges_to_index(to_remove, bin_upper, size(U));
-	U(is) = 0;
-	U(js) = 0;
 	A = abs(U);
-	if (sum(A(:))/2 >= (d+1)*n)
-		warning('There were too many edges at iteration %d so I removed the 20%% smallest of them (I''m not heartless, but science must prevail!)', nb_iter)
-		to_remove = find(w<quantile(w, .2))';
+	i = 1;
+	wnz = sum(w>1e-6)/m;
+	while (nnz(A)/2 >= (d+1)*n && i<10)
+		% I should have commentated while writing because even only one half
+		% hour after, I'm already not sure what I meant. But the main purpose
+		% is too keep remove small weights until we are below the maximum
+		% number of edges. One clever way of avoiding that would probably be
+		% not add that many edges in the first place, but only the more
+		% negative one.
+		% warning('There were too many edges at iteration %d so I removed the %.2f%% smallest of them (I''m not heartless, but science must prevail!)', nb_iter,100*wnz+increment(i))
+		to_remove = all_edges(w<quantile(w(w>1e-6), wnz+increment(i)/100));
+		w(to_remove) = 0;
 		[is, js] = from_edges_to_index(to_remove, bin_upper, size(U));
 		U([is js]) = 0;
 		A = abs(U);
+		i = i+1;
 	end
+	assert(i<10, 'failed to remove enough edge')
+
 
 	% To assess their compatibility, the tradition was to compute the
 	% Frobenius norm of $X$ times the graph Laplacian. Both find this
@@ -77,7 +87,7 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 		% These new vectors were soon promoted as diagonal matrices and
 		% filled $M$ from top to bottom (although it would have been
 		% faster to do it in parallel).
-		Yk = spdiags(T(:,k), [0], m, m);
+		Yk = spdiags(T(:,k), 0, m, m);
 		M(first_row:last_row, :) = U*Yk;
 	end
 	H = 2.*(M'*M);
@@ -107,13 +117,15 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 		% f=-mean(sol.solveroutput.obj);
 		% do only one iteration since we need a way to compute the derivative
 		% break;
+		nb_iter
+		nnz(A)/2
 		if (strmatch('2013', version('-release')))
-			o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 500, 'Display', 'off');
+			o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 300, 'Display', 'off');
 		else
 			o = optimset('Algorithm', 'interior-point-convex', 'MaxIter', 500, 'Display', 'off');
 		end
 		[w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], zeros(m,1), [], w, o);
- 		% [w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -ones(n, 1), [], [], zeros(m,1), [], w, o);
+		% [w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -ones(n, 1), [], [], zeros(m,1), [], w, o);
 		z = lambda.ineqlin;
 		% TODO: since quadprog put a factor 1/2 in front of H, make
 		% sure the derivative is correct.
@@ -125,7 +137,7 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 		% were allowed to have degree less than one. But she still
 		% has to think about to formulate
 		% $ \min_{w,s} ||Mw||^2 + \mu||\bm{1} - Aw - s||^2 $
-	 	% for quadprog or lsqnonneg (http://math.stackexchange.com/q/545280)
+		% for quadprog or lsqnonneg (http://math.stackexchange.com/q/545280)
 		error(strcat(kind, ' is not yet implemented'));
 	end
 	% Because the new $(w, z)$ were supposed to be feasible solution,
@@ -134,9 +146,9 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 	% [val, may\_be\_added]=sort(derivative(find(derivative<0)));
 	% This was badly erroneous
 	may_be_added = find(derivative<0)';
-	% perform cheap regularization, namely remove weirdly large value
+	% perform cheap regularization, namely clamp weirdly large value
 	% (find another way to do it in general)
-	w(w>1e6) = 0;
+	w(w>20) = 1;
 	% Of course maybe there was nothing to do. Or more concerning, the
 	% oracle was rambling and returned a solution that yields the same set
 	% of edges to add as previously, in which case there was no point in
@@ -150,8 +162,10 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 	edges = may_be_added;
 	% this is quite arguable
 	w(may_be_added) = mean(w);
+	w(may_be_added) = w(may_be_added) + normrnd(0, mean(w), length(may_be_added), 1);
 	considered_last_time = may_be_added;
 	to_remove = find(w<1e-8)';
+	w(to_remove) = 0;
 	nb_iter = nb_iter + 1;
 end
 % When $X$ finds the perfect weights for her graph (and hopefully not because
@@ -161,5 +175,5 @@ end
 Aw = A*w;
 W = spdiags (w, [0], m, m);
 L = U*W*U';
-sprintf('use %d out %d possible iterations', nb_iter, MAX_ITER)
+sprintf('use %d out %d possible iterations', nb_iter-1, MAX_ITER)
 end
