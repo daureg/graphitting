@@ -1,4 +1,4 @@
-function [w, A, H, f] = compute_graph(X, kind, mu)
+function [w, A, H, f] = compute_graph(X, kind, mew)
 % All stories have a hero and our is not different. So meet $X$, a handsome and
 % brave set of $n$ $d$-dimensional vectors.
 [n, d] = size(X);
@@ -20,6 +20,10 @@ bin_upper = n*(0:n-1) - cumsum(0:n-1);
 considered_last_time = [];
 [HK, UK] = get_complete_matrices(X);
 AK = abs(UK);
+if strcmpi(kind, 'soft')
+	HK = [HK+mew*(AK'*AK) -mew*AK'; -mew*AK mew*eye(n)];
+	fK = -mew*[ones(1, n)*AK -ones(1, n)]';
+end
 all_edges = 1:m;
 
 % One day, an old man told $X$ that she could for instance start with this
@@ -28,7 +32,10 @@ all_edges = 1:m;
 % more. At this point, the astute reader may wonder why we do not use a more
 % sensible initial choice like bind each node with its closest neighbor. Well,
 % I am telling the story so we do like this. But feel free to contribute!
+load('edges.mat');
+sol = ed;
 edges = randi(m, 1, floor(0.07*(d+1)*n));
+% edges=sol;
 to_remove = zeros(1,m);
 % shamelessly cheating!
 % load('edges.mat');
@@ -91,6 +98,11 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 		M(first_row:last_row, :) = U*Yk;
 	end
 	H = 2.*(M'*M);
+	if strcmpi(kind, 'soft')
+		H = [H+mew*(A'*A) -mew*A'; -mew*A mew*eye(n)];
+		% remove the factor 2 as MATLAB optimize 1/2 x'*H*x + f'*x
+		f = -mew*[ones(1, n)*A -ones(1, n)]';
+	end
 
 	% Having done all this preparatory work, $X$ could finally go see an
 	% oracle living in the mountain, the so called quadprog, and ask him to
@@ -100,6 +112,11 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 	% bytes of memory. But she had to ask her question in a slightly
 	% different language:
 	% http://www.math.nus.edu.sg/~mattohkc/sdpt3/guide4-0-draft.pdf
+	if (strmatch('2013', version('-release')))
+		o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 300, 'Display', 'off', 'TolFun', 1e-11);
+	else
+		o = optimset('Algorithm', 'interior-point-convex', 'MaxIter', 500, 'Display', 'off');
+	end
 	if strcmpi(kind, 'hard')
 		% In one method, she had to ensured that the weighted sum of
 		% degree was at least one for each node, or in the language of
@@ -117,18 +134,11 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 		% f=-mean(sol.solveroutput.obj);
 		% do only one iteration since we need a way to compute the derivative
 		% break;
-		nb_iter
-		nnz(A)/2
-		if (strmatch('2013', version('-release')))
-			o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 300, 'Display', 'off');
-		else
-			o = optimset('Algorithm', 'interior-point-convex', 'MaxIter', 500, 'Display', 'off');
-		end
+		% nb_iter
+		% nnz(A)/2
 		[w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -(sum(A, 2)>0), [], [], zeros(m,1), [], w, o);
 		% [w, f, flag, output, lambda] = quadprog(H, sparse(m, 1), -A, -ones(n, 1), [], [], zeros(m,1), [], w, o);
 		z = lambda.ineqlin;
-		% TODO: since quadprog put a factor 1/2 in front of H, make
-		% sure the derivative is correct.
 		derivative = 2*HK*w - AK'*z;
 		save('out.mat', 'lambda', 'derivative');
 		% break;
@@ -136,9 +146,22 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 		% There was another method were a portion $\alpha$ of the nodes
 		% were allowed to have degree less than one. But she still
 		% has to think about to formulate
-		% $ \min_{w,s} ||Mw||^2 + \mu||\bm{1} - Aw - s||^2 $
+		% $ \min_{w,s} ||Mw||^2 + \mu||\bm{1} - Aw + s||^2 $
 		% for quadprog or lsqnonneg (http://math.stackexchange.com/q/545280)
-		error(strcat(kind, ' is not yet implemented'));
+		% After carefull thinking, she gets at least a formulation for quadprog:
+		[w, f, flag, output, lambda] = quadprog(H, f, [], [], [], [], zeros(m+n,1), [], w, o);
+		derivative = HK*w + fK + lambda.lower;
+		s = w(m+1:end);
+		w = w(1:m);
+		alt = HK(1:m,1:m)*w - mew*AK'*(s + ones(n, 1)) + lambda.lower(1:m);
+		derivative = derivative(1:m);
+		% norm(alt - derivative)
+		% sum(derivative(sol)<-1e-5)
+		save('out.mat', 'lambda', 'derivative');
+		% if nb_iter==15
+		% 	break;
+		% end
+		% error(strcat(kind, ' is not yet implemented'));
 	end
 	% Because the new $(w, z)$ were supposed to be feasible solution,
 	% $\frac{d\Lambda}{d w}$ has to be positive. Therefore, she finds the
@@ -160,19 +183,27 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 	% ways of doing it (like adding the "smallest one" ?)
 	% edges = may\_be\_added(1:max(1, floor(end/2)))';
 	edges = may_be_added;
+	% edges = sol;
+	sprintf('%.3f\t%.3f', mean(derivative(setdiff(may_be_added, sol))), mean(derivative(sol)))
 	% this is quite arguable
 	w(may_be_added) = mean(w);
 	w(may_be_added) = w(may_be_added) + normrnd(0, mean(w), length(may_be_added), 1);
 	considered_last_time = may_be_added;
 	to_remove = find(w<1e-8)';
+	% numel(to_remove)
 	w(to_remove) = 0;
 	nb_iter = nb_iter + 1;
 end
+sprintf('%f\t%f', norm(HK(1:m,1:m)*w)^2, mew*norm(ones(n,1) - A*w +s)^2)
 % When $X$ finds the perfect weights for her graph (and hopefully not because
 % she just give up), she have to fill some paperwork like computing weighted
 % degree and Laplacian to make their union official.
 % TODO: When it will work, use this as output argument
-Aw = A*w;
+if strcmpi(kind, 'soft')
+	Aw = A;
+else
+	Aw = A*w;
+end
 W = spdiags (w, [0], m, m);
 L = U*W*U';
 sprintf('use %d out %d possible iterations', nb_iter-1, MAX_ITER)

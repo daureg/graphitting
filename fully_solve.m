@@ -16,13 +16,15 @@ if strcmpi(kind, 'soft')
 	b = [];
 	lower_bound = zeros(m+n, 1);
 end
-try (validatestring(version('-release'), {'2013a', '2013b'}))
+if strmatch(version('-release'), '2013')
 	o = optimoptions(@quadprog, 'Algorithm', 'interior-point-convex', 'MaxIter', 500, 'Display', 'off', 'TolFun', 1e-15);
-catch older_version
-	o = optimset('Algorithm', 'interior-point-convex', 'MaxIter', 500);
+else
+	o = optimset('Algorithm', 'interior-point-convex', 'MaxIter', 500, 'Display', 'off', 'TolFun', 1e-15);
 end
-[w] = quadprog(H, f, A_constraint, b, [], [] , lower_bound, [] , w, o);
-if strcmpi(kind, 'soft'); s = w(m+1:end); w = w(1:m);
+[w,~,~,~,lambda] = quadprog(H, f, A_constraint, b, [], [] , lower_bound, [] , w, o);
+if strcmpi(kind, 'soft'); der =H*w + f ;s = w(m+1:end); w = w(1:m);
+	save('out', 'der', 'lambda')
+find(der(1:m)<-1e-6)
 sprintf('%f\t%f', norm(H(1:m,1:m)*w)^2, mew*norm(ones(n,1) - A*w +s)^2)
 end
 L = U*diag(w)*U';
