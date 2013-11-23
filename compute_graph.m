@@ -14,7 +14,7 @@ w = zeros(m, 1);
 % presented later, as they are, with all due respect, mainly calculations'
 % artifice (and as such, they don't have a clue about how to start).
 M = sparse(d*n, m);
-MAX_ITER = 50;
+MAX_ITER = 70;
 nb_iter = 1;
 bin_upper = n*(0:n-1) - cumsum(0:n-1);
 considered_last_time = [];
@@ -32,11 +32,18 @@ all_edges = 1:m;
 % more. At this point, the astute reader may wonder why we do not use a more
 % sensible initial choice like bind each node with its closest neighbor. Well,
 % I am telling the story so we do like this. But feel free to contribute!
-load('edges.mat');
-sol = ed;
-edges = randi(m, 1, floor(0.07*(d+1)*n));
+% load('edges.mat');
+% sol = ed;
+MAX_EDGES = (d+1)*n;
+edges = randi(m, 1, floor(0.07*MAX_EDGES));
+% maintain the list of edges currently in the graph
+current_edges = unique(edges);
+% what proportion of edges are allowed above the upper bound
+overflow_factor = 1.1;
+% what proportion of <0 derivates edges we add at most
+adding_factor = 1;
 % edges=sol;
-to_remove = zeros(1,m);
+to_remove = [];
 % shamelessly cheating!
 % load('edges.mat');
 % % edges = sort([18 edges]);
@@ -60,25 +67,38 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 	[positive, negative] = from_edges_to_index(edges, bin_upper, size(U));
 	U(positive) = 1;
 	U(negative) = -1;
+	fprintf('%d: remove %d edges because of small weigth\n', nb_iter, length(to_remove))
+	[is, js] = from_edges_to_index(to_remove, bin_upper, size(U));
+	U([is js]) = 0;
 	A = abs(U);
 	i = 1;
 	wnz = sum(w>1e-6)/m;
-	while (nnz(A)/2 >= (d+1)*n && i<10)
-		% I should have commentated while writing because even only one half
-		% hour after, I'm already not sure what I meant. But the main purpose
-		% is too keep remove small weights until we are below the maximum
-		% number of edges. One clever way of avoiding that would probably be
-		% not add that many edges in the first place, but only the more
-		% negative one.
-		% warning('There were too many edges at iteration %d so I removed the %.2f%% smallest of them (I''m not heartless, but science must prevail!)', nb_iter,100*wnz+increment(i))
-		to_remove = all_edges(w<quantile(w(w>1e-6), wnz+increment(i)/100));
-		w(to_remove) = 0;
-		[is, js] = from_edges_to_index(to_remove, bin_upper, size(U));
-		U([is js]) = 0;
-		A = abs(U);
-		i = i+1;
-	end
-	assert(i<10, 'failed to remove enough edge')
+	real = find(sum(A, 1) > 1);
+	% sprintf('%d, %d', nnz(A)/2, length(current_edges))
+	disp(setdiff(real, current_edges))
+	disp(setdiff(current_edges, real))
+	disp(find(real ~= current_edges))
+	assert(nnz(A)/2 == length(current_edges), 'c_e does not agree with A')
+	assert(nnz(A)/2 <= ceil(overflow_factor*MAX_EDGES), 'check your budget');
+	% while (nnz(A)/2 > MAX_EDGES*overflow_factor && i<10)
+	% 	% I should have commentated while writing because even only one half
+	% 	% hour after, I'm already not sure what I meant. But the main purpose
+	% 	% is too keep removing small weights until we are below the maximum
+	% 	% number of edges. One clever way of avoiding that would probably be
+	% 	% not add that many edges in the first place, but only the more
+	% 	% negative one.
+	% 	% warning('There were too many edges at iteration %d so I removed the %.2f%% smallest of them (I''m not heartless, but science must prevail!)', nb_iter,100*wnz+increment(i))
+	% 	to_remove = all_edges(w<quantile(w(w>1e-6), wnz+increment(i)/100));
+	% 	w(to_remove) = 0;
+	% 	[is, js] = from_edges_to_index(to_remove, bin_upper, size(U));
+	% 	U([is js]) = 0;
+	% 	A = abs(U);
+	% 	i = i+1;
+	% end
+	% if i > 1
+	% 	fprintf('removal\n')
+	% end
+	% assert(i<10, 'failed to remove enough edge')
 
 
 	% To assess their compatibility, the tradition was to compute the
@@ -166,40 +186,65 @@ while (numel(edges) > 0 && nb_iter <= MAX_ITER)
 	% Because the new $(w, z)$ were supposed to be feasible solution,
 	% $\frac{d\Lambda}{d w}$ has to be positive. Therefore, she finds the
 	% edges where it was not the case to add them in the next step.
-	% [val, may\_be\_added]=sort(derivative(find(derivative<0)));
+	[~, idx] = sort(derivative);
+	nb_neg = sum(derivative<0);
+	if (nb_neg > 0)
+		may_be_added = setdiff(idx(1:nb_neg), current_edges)';
+	else
+		%TODO: actually, maybe we just need another round with some 0
+		%edges removed?
+		may_be_added = [];
+	end
 	% This was badly erroneous
+	% [val, may\_be\_added]=sort(derivative(find(derivative<0)));
+
 	may_be_added = find(derivative<0)';
-	% perform cheap regularization, namely clamp weirdly large value
+	% perform cheap regularization, namely clamp oddly large values
 	% (find another way to do it in general)
 	w(w>20) = 1;
 	% Of course maybe there was nothing to do. Or more concerning, the
 	% oracle was rambling and returned a solution that yields the same set
 	% of edges to add as previously, in which case there was no point in
 	% continuing any further.
+	% She first remove edges that were probably numerical zero
+	real = find(sum(A, 1) > 1);
+	assert(all(real == current_edges), 'c_e diverge from real')
+	to_remove = find(w<1e-7)';
+	w(to_remove) = 0;
+	to_remove = intersect(real, to_remove);
+	fprintf('%d: I will remove %d of the current edges because their weigths are negative or too small\n', nb_iter, length(to_remove))
+	current_edges = setdiff(current_edges, to_remove);
 	if ((isempty(may_be_added)) || (length(may_be_added) == length(considered_last_time) && all(may_be_added == considered_last_time)))
 		break;
 	end
-	% She decide to add only half of them but probably there were other
+	% Then she decides to add only half of them but probably there were other
 	% ways of doing it (like adding the "smallest one" ?)
+	budget = ceil(MAX_EDGES*overflow_factor) - length(current_edges);
+	fprintf('%d: graph has %d edges (max = %d), so budget = %d\n', nb_iter, length(current_edges), ceil(MAX_EDGES*overflow_factor), budget)
+	allowed = floor(min(budget, length(may_be_added))*adding_factor);
+	fprintf('%d: %d candidates (and a_f=%.1f) so allowed = %d\n', nb_iter, length(may_be_added), adding_factor, allowed)
+	% here we add the more negative ones, farthest from 0
+	edges = may_be_added(1:allowed);
+	% here we add the negative ones closest to 0
+	% edges = may_be_added(end:-1:end-allowed+1);
+	current_edges = union(current_edges, edges);
 	% edges = may\_be\_added(1:max(1, floor(end/2)))';
-	edges = may_be_added;
+	% edges = may_be_added;
 	% edges = sol;
-	sprintf('%.3f\t%.3f', mean(derivative(setdiff(may_be_added, sol))), mean(derivative(sol)))
+	% sprintf('%.3f\t%.3f', mean(derivative(setdiff(may_be_added, sol))), mean(derivative(sol)))
 	% this is quite arguable
-	w(may_be_added) = mean(w);
-	w(may_be_added) = w(may_be_added) + normrnd(0, mean(w), length(may_be_added), 1);
+	w(edges) = mean(w);
+	w(edges) = w(edges) + normrnd(0, mean(w), length(edges), 1);
 	considered_last_time = may_be_added;
-	to_remove = find(w<1e-8)';
-	% numel(to_remove)
-	w(to_remove) = 0;
 	nb_iter = nb_iter + 1;
+	fprintf('iter: %d\n', nb_iter)
 end
-sprintf('%f\t%f', norm(HK(1:m,1:m)*w)^2, mew*norm(ones(n,1) - A*w +s)^2)
 % When $X$ finds the perfect weights for her graph (and hopefully not because
 % she just give up), she have to fill some paperwork like computing weighted
 % degree and Laplacian to make their union official.
 % TODO: When it will work, use this as output argument
 if strcmpi(kind, 'soft')
+	sprintf('%f\t%f', norm(HK(1:m,1:m)*w)^2, mew*norm(ones(n,1) - A*w +s)^2)
 	Aw = A;
 else
 	Aw = A*w;
